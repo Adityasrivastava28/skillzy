@@ -1,6 +1,6 @@
 import {
   UserCircle2, Sparkles, MessageCircle, CalendarCheck, ShieldCheck, Trophy,
-  Search, Handshake, Send, Video, ArrowRight, IndianRupee,
+  Search, Handshake, Send, Video, ArrowRight, IndianRupee, UserPlus, CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -10,19 +10,21 @@ import { getCurrentUser } from "@/lib/auth/session";
 const features = [
   { icon: UserCircle2, title: "Skill Profiles", live: true, text: "List what you can teach and what you want to learn, with your availability and goals." },
   { icon: Sparkles, title: "Smart Matching", live: true, text: "Ranked by skill fit, availability overlap, and shared goals, with the reasoning shown." },
-  { icon: MessageCircle, title: "Live Chat", live: false, text: "Message, share files, and drop meeting links before a session." },
-  { icon: CalendarCheck, title: "Session Booking", live: false, text: "Calendar scheduling with automatic reminders." },
-  { icon: ShieldCheck, title: "Reviews & Trust", live: false, text: "Rate every exchange to build a visible trust score." },
-  { icon: Trophy, title: "Gamification", live: false, text: "XP, badges, streaks, and a leaderboard keep learning fun." },
+  { icon: MessageCircle, title: "Live Chat", live: true, text: "Chat inside every active swap, and DM any friend directly — no swap required." },
+  { icon: UserPlus, title: "Friends", live: true, text: "Add people as friends outside of any swap, separate from exchange requests." },
+  { icon: CalendarClock, title: "Unified Schedule", live: true, text: "Every session across every swap in one place — confirm, cancel, or mark done." },
+  { icon: CalendarCheck, title: "Session Booking", live: true, text: "Propose a session, the other person confirms, both mark it done to earn XP." },
+  { icon: ShieldCheck, title: "Reviews & Trust", live: true, text: "Rate every exchange to build a visible trust score." },
+  { icon: Trophy, title: "Gamification", live: false, text: "Badges and streaks are tracked but still at 0 — real logic isn't built yet." },
 ];
 
 const steps = [
   { icon: Search, title: "Discover", live: true, text: "Create a profile with the skill you want to learn." },
   { icon: Sparkles, title: "Match", live: true, text: "See partners who want what you can teach." },
-  { icon: Send, title: "Request", live: false, text: "Send an exchange request offering a skill back." },
-  { icon: Handshake, title: "Accept", live: false, text: "Your partner accepts and you book a first session." },
-  { icon: Video, title: "Exchange", live: false, text: "Trade short sessions and feedback." },
-  { icon: Trophy, title: "Grow", live: false, text: "Rate each other, earn XP, keep your streak." },
+  { icon: Send, title: "Request", live: true, text: "Send an exchange request offering a skill back." },
+  { icon: Handshake, title: "Accept", live: true, text: "Your partner accepts and you book a first session." },
+  { icon: Video, title: "Exchange", live: true, text: "Trade short sessions and feedback." },
+  { icon: Trophy, title: "Grow", live: true, text: "Rate each other, earn XP, keep your streak." },
 ];
 
 const audiences = [
