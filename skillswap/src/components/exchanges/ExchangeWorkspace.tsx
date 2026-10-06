@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Calendar, Check, X, Ban, Star, Clock } from "lucide-react";
+import { Send, Calendar, Check, X, Ban, Star } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -10,11 +10,10 @@ import { SkillChip } from "@/components/ui/SkillChip";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorNote } from "@/components/forms/ErrorNote";
 import { inputCls } from "@/components/forms/Field";
+import { SessionStatusBadge, accentBorder } from "@/components/sessions/SessionStatusBadge";
+import { SessionTimeTile } from "@/components/sessions/SessionTimeTile";
 import { api } from "@/lib/api";
 import type { ExchangeWithPeer, MessageRecord, User } from "@/lib/types";
-
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
@@ -254,51 +253,55 @@ export function ExchangeWorkspace({
               {sortedSessions.map((s) => {
                 const proposedByMe = s.proposedBy === me.id;
                 const iCompleted = s.completedBy.includes(me.id);
+                const resolved = s.status === "completed" || s.status === "declined" || s.status === "cancelled";
                 return (
-                  <Card key={s.id} className="text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="flex items-center gap-1.5 font-semibold"><Clock size={14} aria-hidden /> {fmt(s.scheduledAt)}</p>
-                        <p className="mt-0.5 text-xs text-muted">{s.durationMinutes} min{s.note ? ` · ${s.note}` : ""}</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium capitalize text-muted">{s.status}</span>
-                    </div>
+                  <Card key={s.id} className={`border-l-[3px] p-4 text-sm ${accentBorder(s.status)} ${resolved ? "opacity-80" : ""}`}>
+                    <div className="flex items-start gap-3.5">
+                      <SessionTimeTile iso={s.scheduledAt} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs text-muted">{s.durationMinutes} min session</p>
+                          <SessionStatusBadge status={s.status} />
+                        </div>
+                        {s.note && <p className="mt-1.5 text-sm text-ink">“{s.note}”</p>}
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {s.status === "proposed" && !proposedByMe && (
-                        <>
-                          <Button variant="outline" onClick={() => sessionAction(s.id, "respond", { action: "decline" })} disabled={busySession === s.id}>
-                            <X size={14} aria-hidden /> Decline
-                          </Button>
-                          <Button onClick={() => sessionAction(s.id, "respond", { action: "confirm" })} disabled={busySession === s.id}>
-                            <Check size={14} aria-hidden /> Confirm
-                          </Button>
-                        </>
-                      )}
-                      {s.status === "proposed" && proposedByMe && (
-                        <>
-                          <span className="text-xs text-muted">Waiting for {exchange.peer.name.split(" ")[0]} to confirm</span>
-                          <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
-                            <Ban size={14} aria-hidden /> Cancel
-                          </Button>
-                        </>
-                      )}
-                      {s.status === "confirmed" && (
-                        <>
-                          <Button
-                            variant={iCompleted ? "ghost" : "primary"}
-                            onClick={() => sessionAction(s.id, "complete")}
-                            disabled={busySession === s.id || iCompleted}
-                            title={iCompleted ? "Waiting for the other person to also mark it done" : undefined}
-                          >
-                            <Check size={14} aria-hidden /> {iCompleted ? "Waiting for them to confirm" : "Mark as done"}
-                          </Button>
-                          <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
-                            <Ban size={14} aria-hidden /> Cancel
-                          </Button>
-                        </>
-                      )}
-                      {s.status === "completed" && <span className="text-xs font-medium text-emerald-700">Both confirmed — {SESSION_XP_LABEL}</span>}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {s.status === "proposed" && !proposedByMe && (
+                            <>
+                              <Button onClick={() => sessionAction(s.id, "respond", { action: "confirm" })} disabled={busySession === s.id}>
+                                <Check size={14} aria-hidden /> Confirm
+                              </Button>
+                              <Button variant="outline" onClick={() => sessionAction(s.id, "respond", { action: "decline" })} disabled={busySession === s.id}>
+                                <X size={14} aria-hidden /> Decline
+                              </Button>
+                            </>
+                          )}
+                          {s.status === "proposed" && proposedByMe && (
+                            <>
+                              <span className="text-xs text-muted">Waiting for {exchange.peer.name.split(" ")[0]} to confirm</span>
+                              <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
+                                <Ban size={14} aria-hidden /> Cancel
+                              </Button>
+                            </>
+                          )}
+                          {s.status === "confirmed" && (
+                            <>
+                              <Button
+                                variant={iCompleted ? "ghost" : "primary"}
+                                onClick={() => sessionAction(s.id, "complete")}
+                                disabled={busySession === s.id || iCompleted}
+                                title={iCompleted ? "Waiting for the other person to also mark it done" : undefined}
+                              >
+                                <Check size={14} aria-hidden /> {iCompleted ? "Waiting for them to confirm" : "Mark as done"}
+                              </Button>
+                              <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
+                                <Ban size={14} aria-hidden /> Cancel
+                              </Button>
+                            </>
+                          )}
+                          {s.status === "completed" && <span className="text-xs font-medium text-emerald-700">Both confirmed · {SESSION_XP_LABEL}</span>}
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 );
