@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Calendar, Check, X, Ban, Star } from "lucide-react";
+import { Send, Calendar, Check, X, Ban, Star, MessageCircle, CalendarDays, Video as VideoIcon, Code2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -12,8 +12,10 @@ import { ErrorNote } from "@/components/forms/ErrorNote";
 import { inputCls } from "@/components/forms/Field";
 import { SessionStatusBadge, accentBorder } from "@/components/sessions/SessionStatusBadge";
 import { SessionTimeTile } from "@/components/sessions/SessionTimeTile";
+import { VideoCall } from "./VideoCall";
+import { CodeEditor } from "./CodeEditor";
 import { api } from "@/lib/api";
-import type { ExchangeWithPeer, MessageRecord, User } from "@/lib/types";
+import type { CodePadRecord, ExchangeWithPeer, MessageRecord, User } from "@/lib/types";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
@@ -189,10 +191,18 @@ function RateForm({ exchangeId, peerName, onDone }: { exchangeId: string; peerNa
 
 const SESSION_XP_LABEL = "+15 XP each";
 
+const TABS = [
+  { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "sessions", label: "Sessions", icon: CalendarDays },
+  { id: "video", label: "Video Call", icon: VideoIcon },
+  { id: "code", label: "Code", icon: Code2 },
+] as const;
+
 export function ExchangeWorkspace({
-  exchange, me, initialMessages,
-}: { exchange: ExchangeWithPeer; me: User; initialMessages: MessageRecord[] }) {
+  exchange, me, initialMessages, initialCodePad,
+}: { exchange: ExchangeWithPeer; me: User; initialMessages: MessageRecord[]; initialCodePad: CodePadRecord }) {
   const router = useRouter();
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("chat");
   const [scheduling, setScheduling] = useState(false);
   const [rating, setRating] = useState(false);
   const [busySession, setBusySession] = useState<string | null>(null);
@@ -232,83 +242,108 @@ export function ExchangeWorkspace({
         </span>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Chat</h2>
-          <Chat exchangeId={exchange.id} me={me} initialMessages={initialMessages} canSend={exchange.status !== "declined" && exchange.status !== "cancelled"} />
-        </div>
-
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Sessions</h2>
-            {isActive && <Button variant="outline" onClick={() => setScheduling(true)}><Calendar size={15} aria-hidden /> Schedule</Button>}
+      <div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-1 rounded-xl bg-white p-1 shadow-soft">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+                  tab === t.id ? "bg-primary text-white" : "text-muted hover:text-ink"
+                }`}
+              >
+                <t.icon size={15} aria-hidden /> {t.label}
+              </button>
+            ))}
           </div>
-
-          {sessionError && <p className="mb-2 text-sm text-red-700">{sessionError}</p>}
-
-          {sortedSessions.length === 0 ? (
-            <Card className="text-center text-sm text-muted">No sessions scheduled yet.</Card>
-          ) : (
-            <div className="space-y-3">
-              {sortedSessions.map((s) => {
-                const proposedByMe = s.proposedBy === me.id;
-                const iCompleted = s.completedBy.includes(me.id);
-                const resolved = s.status === "completed" || s.status === "declined" || s.status === "cancelled";
-                return (
-                  <Card key={s.id} className={`border-l-[3px] p-4 text-sm ${accentBorder(s.status)} ${resolved ? "opacity-80" : ""}`}>
-                    <div className="flex items-start gap-3.5">
-                      <SessionTimeTile iso={s.scheduledAt} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-muted">{s.durationMinutes} min session</p>
-                          <SessionStatusBadge status={s.status} />
-                        </div>
-                        {s.note && <p className="mt-1.5 text-sm text-ink">“{s.note}”</p>}
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {s.status === "proposed" && !proposedByMe && (
-                            <>
-                              <Button onClick={() => sessionAction(s.id, "respond", { action: "confirm" })} disabled={busySession === s.id}>
-                                <Check size={14} aria-hidden /> Confirm
-                              </Button>
-                              <Button variant="outline" onClick={() => sessionAction(s.id, "respond", { action: "decline" })} disabled={busySession === s.id}>
-                                <X size={14} aria-hidden /> Decline
-                              </Button>
-                            </>
-                          )}
-                          {s.status === "proposed" && proposedByMe && (
-                            <>
-                              <span className="text-xs text-muted">Waiting for {exchange.peer.name.split(" ")[0]} to confirm</span>
-                              <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
-                                <Ban size={14} aria-hidden /> Cancel
-                              </Button>
-                            </>
-                          )}
-                          {s.status === "confirmed" && (
-                            <>
-                              <Button
-                                variant={iCompleted ? "ghost" : "primary"}
-                                onClick={() => sessionAction(s.id, "complete")}
-                                disabled={busySession === s.id || iCompleted}
-                                title={iCompleted ? "Waiting for the other person to also mark it done" : undefined}
-                              >
-                                <Check size={14} aria-hidden /> {iCompleted ? "Waiting for them to confirm" : "Mark as done"}
-                              </Button>
-                              <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
-                                <Ban size={14} aria-hidden /> Cancel
-                              </Button>
-                            </>
-                          )}
-                          {s.status === "completed" && <span className="text-xs font-medium text-emerald-700">Both confirmed · {SESSION_XP_LABEL}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+          {tab === "sessions" && isActive && (
+            <Button variant="outline" onClick={() => setScheduling(true)}><Calendar size={15} aria-hidden /> Schedule</Button>
           )}
         </div>
+
+        {tab === "chat" && (
+          <Chat exchangeId={exchange.id} me={me} initialMessages={initialMessages} canSend={exchange.status !== "declined" && exchange.status !== "cancelled"} />
+        )}
+
+        {tab === "sessions" && (
+          <>
+            {sessionError && <p className="mb-2 text-sm text-red-700">{sessionError}</p>}
+            {sortedSessions.length === 0 ? (
+              <Card className="text-center text-sm text-muted">No sessions scheduled yet.</Card>
+            ) : (
+              <div className="space-y-3">
+                {sortedSessions.map((s) => {
+                  const proposedByMe = s.proposedBy === me.id;
+                  const iCompleted = s.completedBy.includes(me.id);
+                  const resolved = s.status === "completed" || s.status === "declined" || s.status === "cancelled";
+                  return (
+                    <Card key={s.id} className={`border-l-[3px] p-4 text-sm ${accentBorder(s.status)} ${resolved ? "opacity-80" : ""}`}>
+                      <div className="flex items-start gap-3.5">
+                        <SessionTimeTile iso={s.scheduledAt} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-muted">{s.durationMinutes} min session</p>
+                            <SessionStatusBadge status={s.status} />
+                          </div>
+                          {s.note && <p className="mt-1.5 text-sm text-ink">“{s.note}”</p>}
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {s.status === "proposed" && !proposedByMe && (
+                              <>
+                                <Button onClick={() => sessionAction(s.id, "respond", { action: "confirm" })} disabled={busySession === s.id}>
+                                  <Check size={14} aria-hidden /> Confirm
+                                </Button>
+                                <Button variant="outline" onClick={() => sessionAction(s.id, "respond", { action: "decline" })} disabled={busySession === s.id}>
+                                  <X size={14} aria-hidden /> Decline
+                                </Button>
+                              </>
+                            )}
+                            {s.status === "proposed" && proposedByMe && (
+                              <>
+                                <span className="text-xs text-muted">Waiting for {exchange.peer.name.split(" ")[0]} to confirm</span>
+                                <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
+                                  <Ban size={14} aria-hidden /> Cancel
+                                </Button>
+                              </>
+                            )}
+                            {s.status === "confirmed" && (
+                              <>
+                                <Button
+                                  variant={iCompleted ? "ghost" : "primary"}
+                                  onClick={() => sessionAction(s.id, "complete")}
+                                  disabled={busySession === s.id || iCompleted}
+                                  title={iCompleted ? "Waiting for the other person to also mark it done" : undefined}
+                                >
+                                  <Check size={14} aria-hidden /> {iCompleted ? "Waiting for them to confirm" : "Mark as done"}
+                                </Button>
+                                <Button variant="ghost" onClick={() => sessionAction(s.id, "respond", { action: "cancel" })} disabled={busySession === s.id}>
+                                  <Ban size={14} aria-hidden /> Cancel
+                                </Button>
+                              </>
+                            )}
+                            {s.status === "completed" && <span className="text-xs font-medium text-emerald-700">Both confirmed · {SESSION_XP_LABEL}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "video" && (
+          isActive ? (
+            <VideoCall exchangeId={exchange.id} peerName={exchange.peer.name} />
+          ) : (
+            <Card className="text-center text-sm text-muted">Video calls are only available while this swap is active.</Card>
+          )
+        )}
+
+        {tab === "code" && <CodeEditor exchangeId={exchange.id} initialPad={initialCodePad} />}
       </div>
 
       {isActive && (

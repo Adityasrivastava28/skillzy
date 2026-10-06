@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DAYS, GOALS } from "./constants";
+import { CODE_LANGUAGES } from "./types";
 
 const skill = z.string().trim().min(1).max(40);
 
@@ -61,6 +62,17 @@ export const friendRespondSchema = z.object({
 
 export const directMessageSchema = z.object({
   text: z.string().trim().min(1, "Message can't be empty").max(2000),
+});
+
+export const callSignalSchema = z.object({
+  type: z.enum(["offer", "answer", "ice-candidate", "hangup"]),
+  // SDP blobs and ICE candidates are JSON-stringified; generous but bounded.
+  payload: z.string().max(20_000),
+});
+
+export const codePadSchema = z.object({
+  language: z.enum(CODE_LANGUAGES).optional(),
+  content: z.string().max(50_000),
 });
 
 export const ratingSchema = z.object({

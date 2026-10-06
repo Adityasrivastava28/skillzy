@@ -147,3 +147,31 @@ export interface ScheduledSession extends ExchangeSession {
   iTeach: string;
   iLearn: string;
 }
+
+/* ------------------------------ Video calls ----------------------------- */
+
+export type CallSignalType = "offer" | "answer" | "ice-candidate" | "hangup";
+
+/** One step of WebRTC signaling (SDP offer/answer or an ICE candidate), relayed through our own backend. */
+export interface CallSignalRecord {
+  id: string;
+  exchangeId: string;
+  fromUserId: string;
+  type: CallSignalType;
+  payload: string;
+  createdAt: string;
+}
+
+/* ------------------------------ Code pad -------------------------------- */
+
+export const CODE_LANGUAGES = ["javascript", "typescript", "python", "java", "cpp", "html", "css", "plaintext"] as const;
+export type CodeLanguage = (typeof CODE_LANGUAGES)[number];
+
+/** One shared, persisted code pad per exchange. Last write wins. */
+export interface CodePadRecord {
+  exchangeId: string;
+  language: CodeLanguage;
+  content: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
