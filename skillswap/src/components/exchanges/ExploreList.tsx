@@ -6,10 +6,12 @@ import { inputCls } from "@/components/forms/Field";
 import { Card } from "@/components/ui/Card";
 import { MentorCard } from "@/components/ui/MentorCard";
 import { RequestButton } from "./RequestButton";
-import type { User } from "@/lib/types";
+import { FriendButton } from "@/components/friends/FriendButton";
+import type { FriendRequestWithPeer, User } from "@/lib/types";
 
-export function ExploreList({ me, people }: { me: User; people: User[] }) {
+export function ExploreList({ me, people, friendRequests }: { me: User; people: User[]; friendRequests: FriendRequestWithPeer[] }) {
   const [q, setQ] = useState("");
+  const requestFor = (peerId: string) => friendRequests.find((r) => r.peer.id === peerId);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -39,7 +41,16 @@ export function ExploreList({ me, people }: { me: User; people: User[] }) {
       ) : (
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (
-            <MentorCard key={p.id} user={p} action={<RequestButton me={me} peer={p} />} />
+            <MentorCard
+              key={p.id}
+              user={p}
+              action={
+                <div className="space-y-2">
+                  <RequestButton me={me} peer={p} />
+                  <FriendButton peer={p} request={requestFor(p.id)} />
+                </div>
+              }
+            />
           ))}
         </div>
       )}

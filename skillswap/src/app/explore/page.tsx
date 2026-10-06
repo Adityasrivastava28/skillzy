@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserRepo } from "@/lib/db";
 import { toPublic } from "@/lib/db/repo";
+import { listFriendRequestsForUser } from "@/lib/db/friends";
+import { withFriendPeers } from "@/lib/friend-view";
 import { ExploreList } from "@/components/exchanges/ExploreList";
 
 export const metadata = { title: "Explore — SkillSwap" };
@@ -13,6 +15,7 @@ export default async function ExplorePage() {
   if (!me.onboarded) redirect("/onboarding");
 
   const others = (await (await getUserRepo()).listOnboarded(me.id, 100)).map(toPublic);
+  const friendRequests = await withFriendPeers(await listFriendRequestsForUser(me.id), me.id);
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-10">
@@ -20,7 +23,7 @@ export default async function ExplorePage() {
         <h1 className="text-3xl font-semibold">Explore</h1>
         <p className="mt-1 text-muted">Find someone who teaches what you want to learn.</p>
       </header>
-      <ExploreList me={toPublic(me)} people={others} />
+      <ExploreList me={toPublic(me)} people={others} friendRequests={friendRequests} />
     </div>
   );
 }

@@ -5,6 +5,9 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getUserRepo } from "@/lib/db";
 import { toPublic } from "@/lib/db/repo";
 import { countPendingIncoming } from "@/lib/db/exchanges";
+import { listFriendRequestsForUser } from "@/lib/db/friends";
+import { withFriendPeers } from "@/lib/friend-view";
+import { listScheduledSessions } from "@/lib/sessions-view";
 import { rankMatches } from "@/lib/match";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +15,8 @@ import { SkillChip } from "@/components/ui/SkillChip";
 import { MentorCard } from "@/components/ui/MentorCard";
 import { Button } from "@/components/ui/Button";
 import { RequestButton } from "@/components/exchanges/RequestButton";
+import { FriendButton } from "@/components/friends/FriendButton";
+import { UpcomingSessions } from "@/components/sessions/UpcomingSessions";
 
 export const metadata = { title: "Dashboard — SkillSwap" };
 export const dynamic = "force-dynamic";
@@ -25,6 +30,11 @@ export default async function DashboardPage() {
   const others = (await (await getUserRepo()).listOnboarded(me.id, 50)).map(toPublic);
   const matches = rankMatches(myPublic, others).slice(0, 3);
   const pending = await countPendingIncoming(me.id);
+  const friendRequests = await withFriendPeers(await listFriendRequestsForUser(me.id), me.id);
+  const requestFor = (peerId: string) => friendRequests.find((r) => r.peer.id === peerId);
+  const upcoming = (await listScheduledSessions(me.id)).filter(
+    (s) => (s.status === "proposed" || s.status === "confirmed") && new Date(s.scheduledAt) > new Date(),
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-5 py-10">
@@ -71,10 +81,28 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-5 md:grid-cols-3">
             {matches.map(({ user, match }) => (
-              <MentorCard key={user.id} user={user} match={match} action={<RequestButton me={myPublic} peer={user} />} />
+              <MentorCard
+                key={user.id}
+                user={user}
+                match={match}
+                action={
+                  <div className="space-y-2">
+                    <RequestButton me={myPublic} peer={user} />
+                    <FriendButton peer={user} request={requestFor(user.id)} />
+                  </div>
+                }
+              />
             ))}
           </div>
         )}
+      </section>
+
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Upcoming sessions</h2>
+          <Link href="/sessions" className="text-sm font-semibold text-primary hover:underline">View schedule</Link>
+        </div>
+        <UpcomingSessions sessions={upcoming.slice(0, 3)} />
       </section>
     </div>
   );

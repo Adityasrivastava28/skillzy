@@ -94,3 +94,56 @@ export interface MessageRecord {
   text: string;
   createdAt: string;
 }
+
+/* ----------------------------- Friends ------------------------------ */
+
+export type FriendStatus = "pending" | "accepted" | "declined" | "cancelled";
+
+export interface FriendRequestRecord {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: FriendStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Friend request with the other participant's public profile attached, for the UI. */
+export interface FriendRequestWithPeer extends FriendRequestRecord {
+  peer: User;
+  viewerRole: "from" | "to";
+}
+
+/* --------------------------- Direct messages -------------------------- */
+
+export interface ConversationRecord {
+  id: string;
+  userAId: string;
+  userBId: string;
+  createdAt: string;
+  lastMessageAt: string;
+}
+
+export interface DirectMessageRecord {
+  id: string;
+  conversationId: string;
+  fromUserId: string;
+  text: string;
+  createdAt: string;
+}
+
+/** Conversation with the other participant's public profile and a preview, for the UI. */
+export interface ConversationWithPeer extends ConversationRecord {
+  peer: User;
+  lastMessage: DirectMessageRecord | null;
+}
+
+/* ------------------------------ Scheduling ----------------------------- */
+
+/** A session flattened out of its parent exchange, with the peer attached, for a unified schedule view. */
+export interface ScheduledSession extends ExchangeSession {
+  exchangeId: string;
+  peer: User;
+  iTeach: string;
+  iLearn: string;
+}

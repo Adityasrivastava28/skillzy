@@ -51,6 +51,18 @@ export const sessionRespondSchema = z.object({
   action: z.enum(["confirm", "decline", "cancel"]),
 });
 
+export const friendRequestSchema = z.object({
+  toUserId: objectId,
+});
+
+export const friendRespondSchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
+});
+
+export const directMessageSchema = z.object({
+  text: z.string().trim().min(1, "Message can't be empty").max(2000),
+});
+
 export const ratingSchema = z.object({
   stars: z.number().int().min(1).max(5),
   comment: z.string().trim().max(500).default(""),
