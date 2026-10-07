@@ -22,12 +22,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const { exchange, error } = await rateAndMaybeComplete(id, userId, parsed.data);
+    const { exchange, error, statsEvent } = await rateAndMaybeComplete(id, userId, parsed.data);
     if (error) {
       const status = error === "NOT_FOUND" ? 404 : 409;
       return NextResponse.json({ error: ERROR_MESSAGES[error] ?? "Can't close this exchange" }, { status });
     }
-    return NextResponse.json({ exchange });
+    return NextResponse.json({ exchange, statsEvent });
   } catch (e) {
     return handleError(e, "complete exchange");
   }

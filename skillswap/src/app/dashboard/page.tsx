@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Flame, Star, Trophy, Repeat2, Inbox } from "lucide-react";
+import { Flame, Star, Trophy, Repeat2, Sparkles, Inbox } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserRepo } from "@/lib/db";
 import { toPublic } from "@/lib/db/repo";
+import { touchActivityStreak } from "@/lib/db/mongo";
 import { countPendingIncoming } from "@/lib/db/exchanges";
 import { listFriendRequestsForUser } from "@/lib/db/friends";
 import { withFriendPeers } from "@/lib/friend-view";
@@ -17,6 +18,8 @@ import { Button } from "@/components/ui/Button";
 import { RequestButton } from "@/components/exchanges/RequestButton";
 import { FriendButton } from "@/components/friends/FriendButton";
 import { UpcomingSessions } from "@/components/sessions/UpcomingSessions";
+import { BadgesGrid } from "@/components/gamification/BadgesGrid";
+import { XpBreakdownCard } from "@/components/gamification/XpBreakdownCard";
 
 export const metadata = { title: "Dashboard — SkillSwap" };
 export const dynamic = "force-dynamic";
@@ -26,7 +29,8 @@ export default async function DashboardPage() {
   if (!me) redirect("/login");
   if (!me.onboarded) redirect("/onboarding");
 
-  const myPublic = toPublic(me);
+  const streak = await touchActivityStreak(me.id, me.lastActiveDate, me.streak).catch(() => me.streak);
+  const myPublic = { ...toPublic(me), streak };
   const others = (await (await getUserRepo()).listOnboarded(me.id, 50)).map(toPublic);
   const matches = rankMatches(myPublic, others).slice(0, 3);
   const pending = await countPendingIncoming(me.id);
@@ -53,11 +57,20 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Level" value={me.level} icon={<Trophy size={20} />} />
-        <StatCard label="XP" value={me.xp} icon={<Star size={20} />} />
-        <StatCard label="Day streak" value={me.streak} icon={<Flame size={20} />} />
-        <StatCard label="Exchanges" value={me.exchanges} icon={<Repeat2 size={20} />} />
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard label="Level" value={myPublic.level} icon={<Trophy size={20} />} />
+        <StatCard label="XP" value={myPublic.xp} icon={<Star size={20} />} />
+        <StatCard label="Day streak" value={myPublic.streak} icon={<Flame size={20} />} />
+        <StatCard label="Exchanges" value={myPublic.exchanges} icon={<Repeat2 size={20} />} />
+        <StatCard label="Badges" value={myPublic.badges} icon={<Sparkles size={20} />} />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Badges</h2>
+          <BadgesGrid user={myPublic} />
+        </Card>
+        <XpBreakdownCard user={myPublic} />
       </section>
 
       <Card className="grid gap-6 md:grid-cols-2">

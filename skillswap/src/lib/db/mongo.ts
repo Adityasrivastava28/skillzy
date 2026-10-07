@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import type { UserRecord } from "@/lib/types";
+import { FIRST_SWAP_BONUS_XP } from "@/lib/gamification";
 import { initialsOf, type UserRepo } from "./repo";
 
 type Cache = { promise?: Promise<typeof mongoose> };
@@ -43,10 +44,11 @@ const userSchema = new Schema(
     ratingSum: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
     exchanges: { type: Number, default: 0 },
+    sessionsCompleted: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     xp: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
-    badges: { type: Number, default: 0 },
+    lastActiveDate: { type: String, default: null },
     onboarded: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
@@ -61,24 +63,41 @@ export function levelForXp(xp: number) {
 
 /**
  * The only place user stats change, and only ever from something that really
- * happened: a completed session (XP) or a completed exchange (rating + count).
- * Read-modify-save rather than an atomic update because the new rating average
- * and level both depend on the document's current values.
+ * happened: a completed session (XP), or a completed exchange (rating + count
+ * + its own XP, plus a one-time first-swap bonus awarded automatically the
+ * moment someone's `exchanges` count moves off zero).
+ * Read-modify-save rather than an atomic update because the new rating
+ * average, level, and first-swap check all depend on the document's current
+ * values.
  */
 export async function adjustUserStats(
   userId: string,
-  delta: { xp?: number; exchanges?: number; addRating?: number },
-) {
+  delta: { xp?: number; exchanges?: number; addRating?: number; sessionsCompleted?: number },
+): Promise<{ leveledUp: boolean; newLevel: number; firstSwapBonus: boolean } | null> {
   await connect();
-  if (!validId(userId)) return;
+  if (!validId(userId)) return null;
   const doc = await UserModel.findById(userId);
-  if (!doc) return;
-  if (delta.xp) {
-    doc.set("xp", (doc.get("xp") as number) + delta.xp);
-    doc.set("level", levelForXp(doc.get("xp") as number));
-  }
+  if (!doc) return null;
+
+  const prevLevel = levelForXp(doc.get("xp") as number);
+  let xpDelta = delta.xp ?? 0;
+  let firstSwapBonus = false;
+
   if (delta.exchanges) {
-    doc.set("exchanges", (doc.get("exchanges") as number) + delta.exchanges);
+    const prevExchanges = doc.get("exchanges") as number;
+    if (prevExchanges === 0) {
+      firstSwapBonus = true;
+      xpDelta += FIRST_SWAP_BONUS_XP;
+    }
+    doc.set("exchanges", prevExchanges + delta.exchanges);
+  }
+  if (delta.sessionsCompleted) {
+    doc.set("sessionsCompleted", ((doc.get("sessionsCompleted") as number) ?? 0) + delta.sessionsCompleted);
+  }
+  if (xpDelta) {
+    const newXp = (doc.get("xp") as number) + xpDelta;
+    doc.set("xp", newXp);
+    doc.set("level", levelForXp(newXp));
   }
   if (delta.addRating !== undefined) {
     const sum = (doc.get("ratingSum") as number) + delta.addRating;
@@ -88,6 +107,32 @@ export async function adjustUserStats(
     doc.set("rating", Math.round((sum / count) * 10) / 10);
   }
   await doc.save();
+
+  const newLevel = doc.get("level") as number;
+  return { leveledUp: newLevel > prevLevel, newLevel, firstSwapBonus };
+}
+
+/**
+ * Bumps the daily activity streak at most once per real calendar day, and
+ * only when the caller actually visits the app — never a fabricated
+ * auto-increment. Dates compare as plain YYYY-MM-DD strings (UTC), which is
+ * a deliberately coarse "day" definition rather than per-timezone.
+ */
+export async function touchActivityStreak(userId: string, lastActiveDate: string | null, currentStreak: number): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastActiveDate === today) return currentStreak; // already counted today — no write needed
+
+  let newStreak = 1;
+  if (lastActiveDate) {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const dayDiff = Math.round((new Date(today).getTime() - new Date(lastActiveDate).getTime()) / msPerDay);
+    newStreak = dayDiff === 1 ? currentStreak + 1 : 1;
+  }
+
+  await connect();
+  if (!validId(userId)) return currentStreak;
+  await UserModel.findByIdAndUpdate(userId, { streak: newStreak, lastActiveDate: today });
+  return newStreak;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -105,11 +150,13 @@ function toRecord(d: any): UserRecord {
     goals: d.goals ?? [],
     rating: d.rating ?? 0,
     exchanges: d.exchanges ?? 0,
+    sessionsCompleted: d.sessionsCompleted ?? 0,
     level: d.level ?? 1,
     xp: d.xp ?? 0,
     streak: d.streak ?? 0,
-    badges: d.badges ?? 0,
+    badges: 0, // computed in toPublic(); never read from storage
     onboarded: !!d.onboarded,
+    lastActiveDate: d.lastActiveDate ?? null,
     createdAt: new Date(d.createdAt ?? Date.now()).toISOString(),
   };
 }
@@ -153,6 +200,11 @@ export const mongoUserRepo: UserRepo = {
     const filter: Record<string, unknown> = { onboarded: true };
     if (validId(excludeId)) filter._id = { $ne: excludeId };
     const docs = await UserModel.find(filter).limit(limit).lean();
+    return docs.map(toRecord);
+  },
+  async listTopByXp(limit) {
+    await connect();
+    const docs = await UserModel.find({ onboarded: true }).sort({ xp: -1, exchanges: -1 }).limit(limit).lean();
     return docs.map(toRecord);
   },
 };

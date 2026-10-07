@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import { randomUUID } from "node:crypto";
 import { connect, adjustUserStats } from "./mongo";
+import { EXCHANGE_COMPLETE_XP, FIRST_SWAP_BONUS_XP, SESSION_XP } from "@/lib/gamification";
 import type { ExchangeRecord, ExchangeSession, MessageRecord, ExchangeRating } from "@/lib/types";
 
 const sessionSchema = new Schema(
@@ -219,29 +220,34 @@ export async function respondToSession(
   return toExchange(doc.toObject());
 }
 
-const SESSION_XP = 15;
-
 /**
  * Mark a session done for the caller. Once both participants have, the
  * session becomes "completed" and each earns real XP for the session that
  * actually happened.
  */
+export interface StatsEvent {
+  leveledUp: boolean;
+  newLevel: number;
+  firstSwapBonus: boolean;
+  xpAwarded: number;
+}
+
 export async function completeSession(
   exchangeId: string,
   sessionId: string,
   userId: string,
-): Promise<ExchangeRecord | null> {
+): Promise<{ exchange: ExchangeRecord | null; statsEvent?: StatsEvent }> {
   await connect();
-  if (!validId(exchangeId)) return null;
+  if (!validId(exchangeId)) return { exchange: null };
   const doc = await ExchangeModel.findById(exchangeId);
-  if (!doc) return null;
+  if (!doc) return { exchange: null };
   const participants = [doc.get("fromUserId"), doc.get("toUserId")] as string[];
-  if (!participants.includes(userId)) return null;
+  if (!participants.includes(userId)) return { exchange: null };
 
   const sessions = doc.get("sessions") as ExchangeSession[];
   const s = sessions.find((x) => x.id === sessionId);
-  if (!s || s.status !== "confirmed") return null;
-  if (s.completedBy.includes(userId)) return toExchange(doc.toObject());
+  if (!s || s.status !== "confirmed") return { exchange: null };
+  if (s.completedBy.includes(userId)) return { exchange: toExchange(doc.toObject()) };
 
   s.completedBy = [...s.completedBy, userId];
   const bothDone = participants.every((p) => s.completedBy.includes(p));
@@ -251,10 +257,15 @@ export async function completeSession(
   doc.set("sessions", sessions);
   await doc.save();
 
+  let statsEvent: StatsEvent | undefined;
   if (bothDone) {
-    await Promise.all(participants.map((p) => adjustUserStats(p, { xp: SESSION_XP })));
+    const results = await Promise.all(
+      participants.map((p) => adjustUserStats(p, { xp: SESSION_XP, sessionsCompleted: 1 })),
+    );
+    const mine = results[participants.indexOf(userId)];
+    if (mine) statsEvent = { ...mine, xpAwarded: SESSION_XP };
   }
-  return toExchange(doc.toObject());
+  return { exchange: toExchange(doc.toObject()), statsEvent };
 }
 
 /**
@@ -267,7 +278,7 @@ export async function rateAndMaybeComplete(
   exchangeId: string,
   userId: string,
   rating: { stars: number; comment: string },
-): Promise<{ exchange: ExchangeRecord | null; error?: string }> {
+): Promise<{ exchange: ExchangeRecord | null; error?: string; statsEvent?: StatsEvent }> {
   await connect();
   if (!validId(exchangeId)) return { exchange: null, error: "NOT_FOUND" };
   const doc = await ExchangeModel.findById(exchangeId);
@@ -296,12 +307,16 @@ export async function rateAndMaybeComplete(
   if (bothRated) doc.set("status", "completed");
   await doc.save();
 
+  let statsEvent: StatsEvent | undefined;
   if (bothRated) {
-    await Promise.all(
-      nextRatings.map((r) => adjustUserStats(r.to, { exchanges: 1, addRating: r.stars })),
+    const results = await Promise.all(
+      nextRatings.map((r) => adjustUserStats(r.to, { exchanges: 1, addRating: r.stars, xp: EXCHANGE_COMPLETE_XP })),
     );
+    const mineIndex = nextRatings.findIndex((r) => r.to === userId);
+    const mine = results[mineIndex];
+    if (mine) statsEvent = { ...mine, xpAwarded: EXCHANGE_COMPLETE_XP + (mine.firstSwapBonus ? FIRST_SWAP_BONUS_XP : 0) };
   }
-  return { exchange: toExchange(doc.toObject()) };
+  return { exchange: toExchange(doc.toObject()), statsEvent };
 }
 
 export async function sendMessage(exchangeId: string, fromUserId: string, text: string): Promise<MessageRecord> {

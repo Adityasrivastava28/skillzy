@@ -14,6 +14,7 @@ import { SessionStatusBadge, accentBorder } from "@/components/sessions/SessionS
 import { SessionTimeTile } from "@/components/sessions/SessionTimeTile";
 import { VideoCall } from "./VideoCall";
 import { CodeEditor } from "./CodeEditor";
+import { CelebrationModal, type Celebration } from "@/components/gamification/CelebrationModal";
 import { api } from "@/lib/api";
 import type { CodePadRecord, ExchangeWithPeer, MessageRecord, User } from "@/lib/types";
 
@@ -152,7 +153,7 @@ function ScheduleForm({ exchangeId, onDone }: { exchangeId: string; onDone: () =
   );
 }
 
-function RateForm({ exchangeId, peerName, onDone }: { exchangeId: string; peerName: string; onDone: () => void }) {
+function RateForm({ exchangeId, peerName, onDone }: { exchangeId: string; peerName: string; onDone: (statsEvent?: Celebration) => void }) {
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -161,10 +162,10 @@ function RateForm({ exchangeId, peerName, onDone }: { exchangeId: string; peerNa
   async function submit() {
     setBusy(true);
     setError(null);
-    const res = await api(`/api/exchanges/${exchangeId}/complete`, "POST", { stars, comment });
+    const res = await api<{ statsEvent?: Celebration }>(`/api/exchanges/${exchangeId}/complete`, "POST", { stars, comment });
     setBusy(false);
     if (!res.ok) return setError(res.error);
-    onDone();
+    onDone(res.data.statsEvent);
   }
 
   return (
@@ -207,6 +208,7 @@ export function ExchangeWorkspace({
   const [rating, setRating] = useState(false);
   const [busySession, setBusySession] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
 
   const iTeach = exchange.viewerRole === "from" ? exchange.offerSkill : exchange.wantSkill;
   const iLearn = exchange.viewerRole === "from" ? exchange.wantSkill : exchange.offerSkill;
@@ -218,9 +220,10 @@ export function ExchangeWorkspace({
   async function sessionAction(sessionId: string, path: "respond" | "complete", body?: object) {
     setBusySession(sessionId);
     setSessionError(null);
-    const res = await api(`/api/exchanges/${exchange.id}/sessions/${sessionId}/${path}`, "POST", body ?? {});
+    const res = await api<{ statsEvent?: Celebration }>(`/api/exchanges/${exchange.id}/sessions/${sessionId}/${path}`, "POST", body ?? {});
     setBusySession(null);
     if (!res.ok) return setSessionError(res.error);
+    if (res.data.statsEvent) setCelebration(res.data.statsEvent);
     router.refresh();
   }
 
@@ -391,9 +394,18 @@ export function ExchangeWorkspace({
       )}
       {rating && (
         <Modal title="Close this swap" onClose={() => setRating(false)}>
-          <RateForm exchangeId={exchange.id} peerName={exchange.peer.name.split(" ")[0]} onDone={() => { setRating(false); router.refresh(); }} />
+          <RateForm
+            exchangeId={exchange.id}
+            peerName={exchange.peer.name.split(" ")[0]}
+            onDone={(statsEvent) => {
+              setRating(false);
+              if (statsEvent) setCelebration(statsEvent);
+              router.refresh();
+            }}
+          />
         </Modal>
       )}
+      {celebration && <CelebrationModal celebration={celebration} onClose={() => setCelebration(null)} />}
     </div>
   );
 }

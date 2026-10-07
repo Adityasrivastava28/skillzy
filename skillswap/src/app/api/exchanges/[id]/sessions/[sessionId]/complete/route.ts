@@ -9,11 +9,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id, sessionId } = await params;
 
   try {
-    const exchange = await completeSession(id, sessionId, userId);
+    const { exchange, statsEvent } = await completeSession(id, sessionId, userId);
     if (!exchange) {
       return NextResponse.json({ error: "That session can't be marked done" }, { status: 409 });
     }
-    return NextResponse.json({ exchange });
+    return NextResponse.json({ exchange, statsEvent });
   } catch (e) {
     return handleError(e, "complete session");
   }

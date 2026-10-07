@@ -18,7 +18,7 @@ const colors = [
 export const metadata = { title: "Design System — SkillSwap" };
 
 // Sample data for component previews only. Not real users.
-const base = { rating: 0, exchanges: 0, level: 1, xp: 0, streak: 0, badges: 0 };
+const base = { rating: 0, exchanges: 0, sessionsCompleted: 0, level: 1, xp: 0, streak: 0, badges: 0 };
 const sampleA: User = { ...base, id: "a", name: "Sample Learner", initials: "SL", headline: "Sample profile", canTeach: ["Python"], wants: ["UI/UX Design"], availability: ["Tue-eve", "Sat-morn"], goals: ["portfolio"] };
 const sampleB: User = { ...base, id: "b", name: "Sample Mentor", initials: "SM", headline: "Sample profile", canTeach: ["UI/UX Design"], wants: ["Python"], availability: ["Tue-eve", "Sun-eve"], goals: ["portfolio"] };
 

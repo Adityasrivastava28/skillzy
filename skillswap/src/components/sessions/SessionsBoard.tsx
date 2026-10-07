@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { SkillChip } from "@/components/ui/SkillChip";
 import { SessionStatusBadge, accentBorder } from "./SessionStatusBadge";
 import { SessionTimeTile } from "./SessionTimeTile";
+import { CelebrationModal, type Celebration } from "@/components/gamification/CelebrationModal";
 import { api } from "@/lib/api";
 import type { ScheduledSession } from "@/lib/types";
 
@@ -29,7 +30,7 @@ const TABS = [
   { id: "past", label: "Past" },
 ] as const;
 
-function SessionRow({ s, me }: { s: ScheduledSession; me: string }) {
+function SessionRow({ s, me, onCelebrate }: { s: ScheduledSession; me: string; onCelebrate: (c: Celebration) => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +38,10 @@ function SessionRow({ s, me }: { s: ScheduledSession; me: string }) {
   async function act(path: "respond" | "complete", body?: object) {
     setBusy(true);
     setError(null);
-    const res = await api(`/api/exchanges/${s.exchangeId}/sessions/${s.id}/${path}`, "POST", body ?? {});
+    const res = await api<{ statsEvent?: Celebration }>(`/api/exchanges/${s.exchangeId}/sessions/${s.id}/${path}`, "POST", body ?? {});
     setBusy(false);
     if (!res.ok) return setError(res.error);
+    if (res.data.statsEvent) onCelebrate(res.data.statsEvent);
     router.refresh();
   }
 
@@ -119,6 +121,7 @@ function EmptyState({ text }: { text: string }) {
 
 export function SessionsBoard({ sessions, me }: { sessions: ScheduledSession[]; me: string }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("upcoming");
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
 
   const { upcoming, past } = useMemo(() => {
     const now = new Date();
@@ -175,12 +178,13 @@ export function SessionsBoard({ sessions, me }: { sessions: ScheduledSession[]; 
                 <div className="h-px flex-1 bg-line" />
               </div>
               <div className="space-y-3">
-                {items.map((s) => <SessionRow key={`${s.exchangeId}-${s.id}`} s={s} me={me} />)}
+                {items.map((s) => <SessionRow key={`${s.exchangeId}-${s.id}`} s={s} me={me} onCelebrate={setCelebration} />)}
               </div>
             </div>
           ))}
         </div>
       )}
+      {celebration && <CelebrationModal celebration={celebration} onClose={() => setCelebration(null)} />}
     </div>
   );
 }

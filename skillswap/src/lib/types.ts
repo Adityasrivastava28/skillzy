@@ -12,9 +12,11 @@ export interface User {
   goals: string[];
   rating: number;
   exchanges: number;
+  sessionsCompleted: number;
   level: number;
   xp: number;
   streak: number;
+  /** Earned-badge count, computed from real stats — see lib/gamification.ts. */
   badges: number;
 }
 
@@ -23,6 +25,8 @@ export interface UserRecord extends User {
   email: string;
   passwordHash: string;
   onboarded: boolean;
+  /** YYYY-MM-DD the streak was last bumped, or null. Internal bookkeeping only. */
+  lastActiveDate: string | null;
   createdAt: string;
 }
 

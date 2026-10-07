@@ -1,4 +1,5 @@
 import type { ProfileInput, User, UserRecord } from "@/lib/types";
+import { badgeCount } from "@/lib/gamification";
 
 /**
  * Storage contract. Route handlers and pages only talk to this interface,
@@ -12,6 +13,8 @@ export interface UserRepo {
   create(input: { name: string; email: string; passwordHash: string }): Promise<UserRecord>;
   updateProfile(id: string, profile: ProfileInput): Promise<UserRecord | null>;
   listOnboarded(excludeId: string, limit: number): Promise<UserRecord[]>;
+  /** Top users by XP, for the leaderboard. */
+  listTopByXp(limit: number): Promise<UserRecord[]>;
   /** Resolves if the database is reachable, rejects otherwise. */
   health(): Promise<void>;
 }
@@ -23,9 +26,9 @@ export function initialsOf(name: string) {
   return (first + last).toUpperCase();
 }
 
-/** Strip secrets before anything leaves the server. */
+/** Strip secrets before anything leaves the server. `badges` is computed here, not stored. */
 export function toPublic(r: UserRecord): User {
-  return {
+  const base: User = {
     id: r.id,
     name: r.name,
     initials: r.initials,
@@ -36,9 +39,11 @@ export function toPublic(r: UserRecord): User {
     goals: r.goals,
     rating: r.rating,
     exchanges: r.exchanges,
+    sessionsCompleted: r.sessionsCompleted,
     level: r.level,
     xp: r.xp,
     streak: r.streak,
-    badges: r.badges,
+    badges: 0,
   };
+  return { ...base, badges: badgeCount(base) };
 }

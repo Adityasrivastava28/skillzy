@@ -13,6 +13,7 @@ const links = [
   { href: "/explore", label: "Explore", auth: true },
   { href: "/exchanges", label: "Requests", auth: true },
   { href: "/sessions", label: "Schedule", auth: true },
+  { href: "/leaderboard", label: "Leaderboard", auth: true },
   { href: "/friends", label: "Friends", auth: true, badgeKey: "friends" as const },
   { href: "/messages", label: "Messages", auth: true },
 ];
