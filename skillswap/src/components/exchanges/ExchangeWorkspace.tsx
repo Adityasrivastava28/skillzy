@@ -16,6 +16,7 @@ import { VideoCall } from "./VideoCall";
 import { CodeEditor } from "./CodeEditor";
 import { CelebrationModal, type Celebration } from "@/components/gamification/CelebrationModal";
 import { api } from "@/lib/api";
+import { formatMessageTime } from "@/lib/format";
 import type { CodePadRecord, ExchangeWithPeer, MessageRecord, User } from "@/lib/types";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -41,7 +42,7 @@ function Chat({ exchangeId, me, initialMessages, canSend }: { exchangeId: string
     const iv = setInterval(async () => {
       const res = await api<{ messages: MessageRecord[] }>(`/api/exchanges/${exchangeId}/messages`, "GET");
       if (res.ok) setMessages(res.data.messages);
-    }, 4000);
+    }, 2500);
     return () => clearInterval(iv);
   }, [exchangeId]);
 
@@ -73,10 +74,13 @@ function Chat({ exchangeId, me, initialMessages, canSend }: { exchangeId: string
           messages.map((m) => {
             const mine = m.fromUserId === me.id;
             return (
-              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                 <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? "bg-primary text-white" : "bg-surface text-ink"}`}>
                   {m.text}
                 </div>
+                <span className="mt-1 px-1 text-[11px] text-muted" title={new Date(m.createdAt).toLocaleString()}>
+                  {formatMessageTime(m.createdAt)}
+                </span>
               </div>
             );
           })
@@ -338,15 +342,23 @@ export function ExchangeWorkspace({
           </>
         )}
 
-        {tab === "video" && (
-          isActive ? (
+        {/*
+          Once mounted, Video and Code stay mounted even while another tab is
+          showing — just visually hidden. Unmounting VideoCall mid-call would
+          tear down the live peer connection, and unmounting CodeEditor would
+          throw away its in-flight edits and revert to the page's stale
+          initial snapshot the next time this tab is opened.
+        */}
+        {isActive ? (
+          <div className={tab === "video" ? "" : "hidden"}>
             <VideoCall exchangeId={exchange.id} peerName={exchange.peer.name} />
-          ) : (
-            <Card className="text-center text-sm text-muted">Video calls are only available while this swap is active.</Card>
-          )
+          </div>
+        ) : (
+          tab === "video" && <Card className="text-center text-sm text-muted">Video calls are only available while this swap is active.</Card>
         )}
-
-        {tab === "code" && <CodeEditor exchangeId={exchange.id} initialPad={initialCodePad} />}
+        <div className={tab === "code" ? "" : "hidden"}>
+          <CodeEditor exchangeId={exchange.id} initialPad={initialCodePad} />
+        </div>
       </div>
 
       {isActive && (

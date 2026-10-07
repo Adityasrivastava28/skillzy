@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getConversationById, listDirectMessages } from "@/lib/db/messages";
+import { getConversationById, listDirectMessages, markConversationRead } from "@/lib/db/messages";
 import { getUserRepo } from "@/lib/db";
 import { toPublic } from "@/lib/db/repo";
 import { DirectChat } from "@/components/messages/DirectChat";
@@ -21,6 +21,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     listDirectMessages(id),
   ]);
   if (!peer) notFound();
+  await markConversationRead(id, me.id);
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-10">

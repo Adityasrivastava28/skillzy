@@ -38,6 +38,9 @@ const exchangeSchema = new Schema(
     status: { type: String, required: true, default: "pending", index: true },
     sessions: { type: [sessionSchema], default: [] },
     ratings: { type: [ratingSchema], default: [] },
+    lastMessageAt: { type: Date, default: null },
+    // When each participant last opened this exchange's chat, keyed by userId — real read state, not a guess.
+    reads: { type: Map, of: Date, default: {} },
   },
   { timestamps: true },
 );
@@ -55,6 +58,12 @@ const ExchangeModel = mongoose.models.Exchange ?? mongoose.model("Exchange", exc
 const MessageModel = mongoose.models.Message ?? mongoose.model("Message", messageSchema);
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+function readsToRecord(reads: any): Record<string, string> {
+  if (!reads) return {};
+  const entries: [string, unknown][] = reads instanceof Map ? [...reads.entries()] : Object.entries(reads);
+  return Object.fromEntries(entries.map(([k, v]) => [k, new Date(v as string | Date).toISOString()]));
+}
+
 function toExchange(d: any): ExchangeRecord {
   return {
     id: String(d._id),
@@ -64,6 +73,8 @@ function toExchange(d: any): ExchangeRecord {
     wantSkill: d.wantSkill,
     note: d.note ?? "",
     status: d.status,
+    lastMessageAt: d.lastMessageAt ? new Date(d.lastMessageAt).toISOString() : null,
+    reads: readsToRecord(d.reads),
     sessions: (d.sessions ?? []).map((s: any) => ({
       id: s.id,
       proposedBy: s.proposedBy,
@@ -322,6 +333,13 @@ export async function rateAndMaybeComplete(
 export async function sendMessage(exchangeId: string, fromUserId: string, text: string): Promise<MessageRecord> {
   await connect();
   const d = await MessageModel.create({ exchangeId, fromUserId, text });
+  const now = new Date();
+  // Sending a message is, for the sender, also reading everything up to this point.
+  if (validId(exchangeId)) {
+    await ExchangeModel.findByIdAndUpdate(exchangeId, {
+      $set: { lastMessageAt: now, [`reads.${fromUserId}`]: now },
+    });
+  }
   return toMessage(d.toObject());
 }
 
@@ -329,4 +347,21 @@ export async function listMessages(exchangeId: string): Promise<MessageRecord[]>
   await connect();
   const docs = await MessageModel.find({ exchangeId }).sort({ createdAt: 1 }).lean();
   return docs.map(toMessage);
+}
+
+/** Marks an exchange's chat as read by this user right now — call whenever they actually open/view it. */
+export async function markExchangeChatRead(exchangeId: string, userId: string): Promise<void> {
+  await connect();
+  if (!validId(exchangeId)) return;
+  await ExchangeModel.findByIdAndUpdate(exchangeId, { $set: { [`reads.${userId}`]: new Date() } });
+}
+
+/** How many of this user's exchange chats have a message since they last opened them. Real, derived from stored timestamps. */
+export async function countUnreadExchangeChats(userId: string): Promise<number> {
+  await connect();
+  return ExchangeModel.countDocuments({
+    $or: [{ fromUserId: userId }, { toUserId: userId }],
+    lastMessageAt: { $ne: null },
+    $expr: { $gt: ["$lastMessageAt", { $ifNull: [`$reads.${userId}`, new Date(0)] }] },
+  });
 }

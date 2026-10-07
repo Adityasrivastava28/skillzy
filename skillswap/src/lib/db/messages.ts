@@ -8,6 +8,8 @@ const conversationSchema = new Schema(
     userAId: { type: String, required: true, index: true },
     userBId: { type: String, required: true, index: true },
     lastMessageAt: { type: Date, default: Date.now },
+    // When each participant last opened this conversation, keyed by userId — real read state, not a guess.
+    reads: { type: Map, of: Date, default: {} },
   },
   { timestamps: true },
 );
@@ -26,6 +28,12 @@ const ConversationModel = mongoose.models.Conversation ?? mongoose.model("Conver
 const DirectMessageModel = mongoose.models.DirectMessage ?? mongoose.model("DirectMessage", directMessageSchema);
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+function readsToRecord(reads: any): Record<string, string> {
+  if (!reads) return {};
+  const entries: [string, unknown][] = reads instanceof Map ? [...reads.entries()] : Object.entries(reads);
+  return Object.fromEntries(entries.map(([k, v]) => [k, new Date(v as string | Date).toISOString()]));
+}
+
 function toConversation(d: any): ConversationRecord {
   return {
     id: String(d._id),
@@ -33,6 +41,7 @@ function toConversation(d: any): ConversationRecord {
     userBId: d.userBId,
     createdAt: new Date(d.createdAt).toISOString(),
     lastMessageAt: new Date(d.lastMessageAt ?? d.createdAt).toISOString(),
+    reads: readsToRecord(d.reads),
   };
 }
 
@@ -97,7 +106,11 @@ export async function sendDirectMessage(
 ): Promise<DirectMessageRecord> {
   await connect();
   const d = await DirectMessageModel.create({ conversationId, fromUserId, text });
-  await ConversationModel.findByIdAndUpdate(conversationId, { lastMessageAt: new Date() });
+  const now = new Date();
+  // Sending a message is, for the sender, also reading everything up to this point.
+  await ConversationModel.findByIdAndUpdate(conversationId, {
+    $set: { lastMessageAt: now, [`reads.${fromUserId}`]: now },
+  });
   return toMessage(d.toObject());
 }
 
@@ -111,4 +124,20 @@ export async function lastMessageFor(conversationId: string): Promise<DirectMess
   await connect();
   const d = await DirectMessageModel.findOne({ conversationId }).sort({ createdAt: -1 }).lean();
   return d ? toMessage(d) : null;
+}
+
+/** Marks a conversation as read by this user right now — call whenever they actually open/view it. */
+export async function markConversationRead(conversationId: string, userId: string): Promise<void> {
+  await connect();
+  if (!validId(conversationId)) return;
+  await ConversationModel.findByIdAndUpdate(conversationId, { $set: { [`reads.${userId}`]: new Date() } });
+}
+
+/** How many of this user's conversations have a message since they last opened them. Real, derived from stored timestamps. */
+export async function countUnreadConversations(userId: string): Promise<number> {
+  await connect();
+  return ConversationModel.countDocuments({
+    $or: [{ userAId: userId }, { userBId: userId }],
+    $expr: { $gt: ["$lastMessageAt", { $ifNull: [`$reads.${userId}`, new Date(0)] }] },
+  });
 }

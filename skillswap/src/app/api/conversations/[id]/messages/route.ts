@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth/session";
-import { getConversationById, listDirectMessages, sendDirectMessage } from "@/lib/db/messages";
+import { getConversationById, listDirectMessages, markConversationRead, sendDirectMessage } from "@/lib/db/messages";
 import { areFriends } from "@/lib/db/friends";
 import { directMessageSchema } from "@/lib/validation";
 import { handleError } from "@/lib/api-error";
@@ -22,6 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     const messages = await listDirectMessages(id);
+    await markConversationRead(id, userId);
     return NextResponse.json({ messages });
   } catch (e) {
     return handleError(e, "list direct messages");

@@ -41,12 +41,20 @@ export async function sendCallSignal(
  * Everything after `after` (a signal id), oldest first — the polling client's
  * "what's new since I last checked" cursor. Omit `after` for the full backlog
  * (used when a tab first opens, in case a call is already in progress).
+ *
+ * `excludeUserId` leaves out the caller's own signals: a poller must only ever
+ * see what the *other* participant sent, otherwise a caller "receives" its
+ * own offer back, misreads it as glare, and tears down its own connection
+ * before the real peer ever sees it.
  */
-export async function listCallSignals(exchangeId: string, after?: string): Promise<CallSignalRecord[]> {
+export async function listCallSignals(exchangeId: string, after?: string, excludeUserId?: string): Promise<CallSignalRecord[]> {
   await connect();
   const filter: Record<string, unknown> = { exchangeId };
   if (after && mongoose.isValidObjectId(after)) {
     filter._id = { $gt: new mongoose.Types.ObjectId(after) };
+  }
+  if (excludeUserId) {
+    filter.fromUserId = { $ne: excludeUserId };
   }
   const docs = await CallSignalModel.find(filter).sort({ _id: 1 }).limit(200).lean();
   return docs.map(toSignal);

@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { inputCls } from "@/components/forms/Field";
 import { api } from "@/lib/api";
+import { formatMessageTime } from "@/lib/format";
 import type { DirectMessageRecord, User } from "@/lib/types";
 
 export function DirectChat({
@@ -23,7 +24,7 @@ export function DirectChat({
     const iv = setInterval(async () => {
       const res = await api<{ messages: DirectMessageRecord[] }>(`/api/conversations/${conversationId}/messages`, "GET");
       if (res.ok) setMessages(res.data.messages);
-    }, 4000);
+    }, 2500);
     return () => clearInterval(iv);
   }, [conversationId]);
 
@@ -64,10 +65,13 @@ export function DirectChat({
             messages.map((m) => {
               const mine = m.fromUserId === me.id;
               return (
-                <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                   <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? "bg-primary text-white" : "bg-surface text-ink"}`}>
                     {m.text}
                   </div>
+                  <span className="mt-1 px-1 text-[11px] text-muted" title={new Date(m.createdAt).toLocaleString()}>
+                    {formatMessageTime(m.createdAt)}
+                  </span>
                 </div>
               );
             })

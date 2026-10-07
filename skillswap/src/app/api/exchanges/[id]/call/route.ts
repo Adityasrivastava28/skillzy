@@ -23,7 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!(await assertParticipant(id, userId))) {
       return NextResponse.json({ error: "Exchange not found" }, { status: 404 });
     }
-    const signals = await listCallSignals(id, after);
+    const signals = await listCallSignals(id, after, userId);
     return NextResponse.json({ signals });
   } catch (e) {
     return handleError(e, "list call signals");

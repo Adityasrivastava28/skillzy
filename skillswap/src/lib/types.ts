@@ -80,6 +80,10 @@ export interface ExchangeRecord {
   status: ExchangeStatus;
   sessions: ExchangeSession[];
   ratings: ExchangeRating[];
+  /** ISO timestamp of the most recent chat message, or null if none yet. */
+  lastMessageAt: string | null;
+  /** ISO timestamp each participant last opened this exchange's chat, keyed by userId. */
+  reads: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,6 +93,8 @@ export interface ExchangeWithPeer extends ExchangeRecord {
   peer: User;
   /** "them" if the current viewer is fromUser, "me"-perspective helper for the UI. */
   viewerRole: "from" | "to";
+  /** True if the chat has a message since the viewer last opened it. */
+  unread: boolean;
 }
 
 export interface MessageRecord {
@@ -126,6 +132,8 @@ export interface ConversationRecord {
   userBId: string;
   createdAt: string;
   lastMessageAt: string;
+  /** ISO timestamp each participant last opened this conversation, keyed by userId. */
+  reads: Record<string, string>;
 }
 
 export interface DirectMessageRecord {
@@ -140,6 +148,8 @@ export interface DirectMessageRecord {
 export interface ConversationWithPeer extends ConversationRecord {
   peer: User;
   lastMessage: DirectMessageRecord | null;
+  /** True if there's a message since the viewer last opened this conversation. */
+  unread: boolean;
 }
 
 /* ------------------------------ Scheduling ----------------------------- */

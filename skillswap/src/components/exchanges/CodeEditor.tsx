@@ -51,6 +51,7 @@ export function CodeEditor({ exchangeId, initialPad }: { exchangeId: string; ini
   const lastKnownUpdatedAt = useRef(initialPad.updatedAt);
   const lastEditAt = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingPatchRef = useRef<{ language?: CodeLanguage; content?: string }>({});
 
   // Poll for the other person's edits, but never clobber what the viewer is actively typing.
   useEffect(() => {
@@ -68,11 +69,17 @@ export function CodeEditor({ exchangeId, initialPad }: { exchangeId: string; ini
     return () => clearInterval(iv);
   }, [exchangeId]);
 
+  // Merges into whatever's already pending rather than replacing it, so a
+  // language change that lands mid-debounce can't silently cancel (and
+  // lose) an unsaved content edit, or vice versa.
   function save(patch: { language?: CodeLanguage; content?: string }) {
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
     clearTimeout(saveTimer.current);
     setSaveState("saving");
     saveTimer.current = setTimeout(async () => {
-      const res = await api<{ pad: CodePadRecord }>(`/api/exchanges/${exchangeId}/code`, "PUT", patch);
+      const toSend = pendingPatchRef.current;
+      pendingPatchRef.current = {};
+      const res = await api<{ pad: CodePadRecord }>(`/api/exchanges/${exchangeId}/code`, "PUT", toSend);
       if (!res.ok) {
         setError(res.error);
         setSaveState("idle");

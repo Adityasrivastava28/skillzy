@@ -79,7 +79,8 @@ function Row({ ex, viewerId }: { ex: ExchangeWithPeer; viewerId: string }) {
           </Button>
         )}
         {ex.status === "accepted" && (
-          <Button href={`/exchanges/${ex.id}`}>
+          <Button href={`/exchanges/${ex.id}`} className="relative">
+            {ex.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-white" aria-hidden />}
             Open <ArrowRight size={15} aria-hidden />
           </Button>
         )}

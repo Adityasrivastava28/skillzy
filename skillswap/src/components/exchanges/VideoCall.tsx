@@ -49,6 +49,12 @@ export function VideoCall({ exchangeId, peerName }: { exchangeId: string; peerNa
     await api(`/api/exchanges/${exchangeId}/call`, "POST", { type, payload: JSON.stringify(payload) });
   }
 
+  /** Wipes any leftover signaling history from a previous call so it can't be replayed into this one. */
+  async function clearStaleSignals() {
+    lastSignalIdRef.current = undefined;
+    await api(`/api/exchanges/${exchangeId}/call`, "DELETE").catch(() => {});
+  }
+
   function newPeerConnection() {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pc.onicecandidate = (e) => {
@@ -77,6 +83,7 @@ export function VideoCall({ exchangeId, peerName }: { exchangeId: string; peerNa
   async function startCall() {
     setError(null);
     try {
+      await clearStaleSignals();
       const stream = await getLocalStream();
       const pc = newPeerConnection();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));

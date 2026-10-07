@@ -33,14 +33,15 @@ Everything is backed by MongoDB. Nothing is mocked or seeded.
 - **Profiles & matching**: skill fit (50%) + availability overlap (30%) + shared goals (20%), with the breakdown shown in the UI.
 - **Explore**: search everyone who's finished onboarding.
 - **Swap requests**: send a request naming a real skill you teach and a real skill they teach (checked server-side against their actual profile); accept, decline, or cancel.
-- **Chat**: real messages stored per exchange, polled live.
+- **Chat**: real messages stored per exchange, polled live every 2.5s, with per-message timestamps.
 - **Sessions**: propose a date/time, the other person confirms, either can cancel. A session only becomes "completed" once **both** people mark it done — that's when real XP (+15 each) is awarded.
 - **Closing a swap**: you can't close (and rate) an exchange until at least one session actually completed together. Once both people rate each other, the exchange closes and both people's `rating` and `exchanges` count update for real — not fabricated numbers.
 - **Friends**: send/accept/decline/cancel friend requests from Explore, your matches, or the Friends page — independent of any swap.
-- **Direct messages**: once you're friends, you get a real DM thread with them (polled live), no exchange required.
+- **Direct messages**: once you're friends, you get a real DM thread with them (polled live every 2.5s, with timestamps), no exchange required.
 - **Schedule**: every session across every one of your swaps, in one place — grouped by day, with confirm/cancel/mark-done actions, so you don't have to dig through each exchange separately.
-- **Video call**: a real 1:1 WebRTC video/audio call inside an active swap — camera and mic, signaled through our own backend (polled, like chat). No third-party calling service; media goes peer-to-peer once connected. Needs a STUN-reachable network; there's no TURN relay, so some strict NATs/firewalls may not connect.
-- **Code editor**: a shared, syntax-highlighted code pad per swap (JS/TS/Python/Java/C++/HTML/CSS), saved to the exchange and polled so both people see each other's edits. Last write wins — built for two people taking turns, not simultaneous typing.
+- **Video call**: a real 1:1 WebRTC video/audio call inside an active swap — camera and mic, signaled through our own backend (polled, like chat). No third-party calling service; media goes peer-to-peer once connected. Needs a STUN-reachable network; there's no TURN relay, so some strict NATs/firewalls may not connect. Switching tabs no longer drops the call — it stays mounted (just hidden) so the peer connection survives.
+- **Code editor**: a shared, syntax-highlighted code pad per swap (JS/TS/Python/Java/C++/HTML/CSS), saved to the exchange and polled so both people see each other's edits. Last write wins — built for two people taking turns, not simultaneous typing. Also stays mounted across tab switches, so it no longer reverts to stale content.
+- **Notifications**: a real bell in the nav, aggregating pending swap requests, unread swap chats, pending friend requests, and unread DMs — every count is derived from stored timestamps (a `reads` map per user on each conversation/exchange), never invented. Unread conversations and active swaps also show a dot in their own lists.
 - **XP & levels**: +15 XP per person for each session both sides mark done, +30 XP per person when a swap closes (both rated), plus a one-time +50 XP bonus the moment your `exchanges` count moves off zero. Level = `floor(xp / 100) + 1`. The dashboard's XP breakdown card adds these up and always ties out exactly to your total — no separate "bonus" number floating around unaccounted for.
 - **Badges**: 8 badges, each a pure rule over your real stored stats (sessions completed, exchanges, rating, streak, level) — nothing is stored as "earned," so a badge can never drift out of sync with the stats it's based on. Shown on the dashboard, locked ones included so you can see what's next.
 - **Daily streak**: bumped at most once per real calendar day, the moment you load the dashboard — never a fabricated auto-increment.
@@ -58,9 +59,16 @@ Everything is backed by MongoDB. Nothing is mocked or seeded.
 - `src/lib/validation.ts` - zod schemas shared by API routes
 - `src/lib/match.ts` - match scoring (skill fit 50%, availability 30%, goals 20%)
 - `src/lib/gamification.ts` - XP amounts, badge rules (`earnedBadges`/`badgeCount`, pure functions over real stats), `xpBreakdown`
+- `src/lib/format.ts` - shared chat timestamp formatting
 - `src/app/api/` - `auth/{signup,login,logout,me}`, `profile`, `exchanges/**` (requests, messages, sessions, completion, call signaling, code pad), `friends/**`, `conversations/**`, `sessions`
 - `src/app/{explore,exchanges,exchanges/[id],friends,messages,messages/[id],sessions,leaderboard}` - browse people, manage requests, the chat/session/video/code workspace, friends, DMs, unified schedule, XP leaderboard
-- `src/components/ui/` design system (incl. `PageSpinner.tsx` for route loading states), `src/components/forms/` auth + onboarding, `src/components/exchanges/` swap flow (chat, sessions, `VideoCall.tsx`, `CodeEditor.tsx`), `src/components/friends/` friend requests, `src/components/messages/` DMs, `src/components/sessions/` schedule board, `src/components/gamification/` badges grid, XP breakdown card, level-up/bonus celebration modal
+- `src/components/ui/` design system (incl. `PageSpinner.tsx` for route loading states), `src/components/forms/` auth + onboarding, `src/components/exchanges/` swap flow (chat, sessions, `VideoCall.tsx`, `CodeEditor.tsx`), `src/components/friends/` friend requests, `src/components/messages/` DMs, `src/components/sessions/` schedule board, `src/components/gamification/` badges grid, XP breakdown card, level-up/bonus celebration modal, `src/components/layout/NotificationBell.tsx` - the real notifications dropdown
+
+## Fixed this round
+
+- **Video calls not connecting**: the signaling poll was returning a caller's own offer/answer back to itself (no filter by sender), which made the caller immediately misread its own signal as "the other side is calling" and tear down its own connection before the real peer ever saw anything. Fixed by excluding the caller's own signals server-side. Also cleared stale signaling history from the previous call before starting a new one — leftover signals were getting replayed into fresh calls and feeding them a mismatched SDP answer.
+- **Video/Code tabs tearing down on tab switch**: both were conditionally unmounted when you switched to another tab, which killed an in-progress call outright and reverted the code pad to its stale page-load snapshot. Both now stay mounted (just hidden) once the swap is active.
+- **Code pad dropping edits**: typing and then quickly changing the language within the same 700ms debounce window cancelled the pending content save and only sent the language change, silently losing the typed content. Fixed by merging pending patches instead of replacing them.
 
 ## Not built yet
 

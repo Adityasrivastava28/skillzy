@@ -13,6 +13,12 @@ export async function withPeers(exchanges: ExchangeRecord[], viewerId: string): 
     .filter((e) => peers.has(e.fromUserId === viewerId ? e.toUserId : e.fromUserId))
     .map((e) => {
       const isFrom = e.fromUserId === viewerId;
-      return { ...e, peer: peers.get(isFrom ? e.toUserId : e.fromUserId)!, viewerRole: isFrom ? "from" : "to" } as ExchangeWithPeer;
+      const unread = !!e.lastMessageAt && new Date(e.lastMessageAt) > new Date(e.reads[viewerId] ?? 0);
+      return {
+        ...e,
+        peer: peers.get(isFrom ? e.toUserId : e.fromUserId)!,
+        viewerRole: isFrom ? "from" : "to",
+        unread,
+      } as ExchangeWithPeer;
     });
 }

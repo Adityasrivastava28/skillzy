@@ -22,5 +22,6 @@ export async function withConversationPeers(
       ...c,
       peer: peers.get(c.userAId === viewerId ? c.userBId : c.userAId)!,
       lastMessage,
+      unread: new Date(c.lastMessageAt) > new Date(c.reads[viewerId] ?? 0),
     }));
 }

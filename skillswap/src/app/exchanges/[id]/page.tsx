@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getExchangeById, listMessages } from "@/lib/db/exchanges";
+import { getExchangeById, listMessages, markExchangeChatRead } from "@/lib/db/exchanges";
 import { withPeers } from "@/lib/exchange-view";
 import { toPublic } from "@/lib/db/repo";
 import { getCodePad } from "@/lib/db/codepad";
@@ -18,6 +18,7 @@ export default async function ExchangePage({ params }: { params: Promise<{ id: s
 
   const [withPeer] = await withPeers([exchange], me.id);
   const [messages, codePad] = await Promise.all([listMessages(id), getCodePad(id)]);
+  await markExchangeChatRead(id, me.id);
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-10">

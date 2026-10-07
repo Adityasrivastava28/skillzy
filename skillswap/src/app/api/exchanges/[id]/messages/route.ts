@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth/session";
-import { getExchangeById, listMessages, sendMessage } from "@/lib/db/exchanges";
+import { getExchangeById, listMessages, markExchangeChatRead, sendMessage } from "@/lib/db/exchanges";
 import { messageSchema } from "@/lib/validation";
 import { handleError } from "@/lib/api-error";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -21,6 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Exchange not found" }, { status: 404 });
     }
     const messages = await listMessages(id);
+    await markExchangeChatRead(id, userId);
     return NextResponse.json({ messages });
   } catch (e) {
     return handleError(e, "list messages");
